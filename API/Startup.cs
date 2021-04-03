@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using API.Helpers;
 using Core.Interfaces;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
@@ -29,8 +30,14 @@ namespace API
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddScoped<IProductRepository, ProductRepository>();//add repository
+            //add generic repository
+            services.AddScoped(typeof(IGenericRepository<>), (typeof(GenericRepository<>)));
+            //add automapper
+            services.AddAutoMapper(typeof(MappingProfiles));
             services.AddControllers();
             services.AddDbContext<StoreContext>(x => x.UseSqlite(_config.GetConnectionString("DefaultConnection")));
+
+            //new code by vs code, don/t know how this mean
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "API", Version = "v1" });
@@ -50,6 +57,8 @@ namespace API
             app.UseHttpsRedirection();
 
             app.UseRouting();
+            //let system to use static files like local image files
+            app.UseStaticFiles();
 
             app.UseAuthorization();
 
