@@ -304,6 +304,247 @@ catch (Exception ex)
 }
 ```
 
+## Build API Generic Repository
+
+#### API.csproj
+
+Add Automapper package
+
+```
+<PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="8.1.1" />
+```
+
+#### ProductToReturnDto.cs 
+
+Create Dto class show to client instead of show details of product class
+
+```
+public class ProductToReturnDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public decimal Price { get; set; }
+    public string PictureUrl { get; set; }
+    public string ProductType { get; set; }
+    public string ProductBrand { get; set; }
+}
+```
+
+#### MappingProfiles.cs 
+
+Add automapper files class to use automapper
+
+```
+public class MappingProfiles : Profile
+{
+    public MappingProfiles()
+    {
+        CreateMap<Product, ProductToReturnDto>()
+            //instead of getting a string of ProductBrand class, get the Name field of ProductBrand
+            //same as ProductType
+            .ForMember(d => d.ProductBrand, o => o.MapFrom(s => s.ProductBrand.Name))
+            .ForMember(d => d.ProductType, o => o.MapFrom(s => s.ProductType.Name))
+            //get picture url from producturlresolver class
+            .ForMember(d => d.PictureUrl, o => o.MapFrom<ProductUrlResolver>());
+    }
+}
+```
+
+#### ProductUrlResolver.cs
+
+Add this class to show the real url of image file
+
+```
+public class ProductUrlResolver : IValueResolver<Product, ProductToReturnDto, string>
+{
+    private readonly IConfiguration _config;
+    public ProductUrlResolver(IConfiguration config)
+    {
+        _config = config;
+    }
+
+    public string Resolve(Product source, ProductToReturnDto destination, string destMember, ResolutionContext context)
+    {
+        if (!string.IsNullOrEmpty(source.PictureUrl))
+        {
+            return _config["ApiUrl"] + source.PictureUrl;
+        }
+
+        return null;
+    }
+}
+```
+
+#### Startup.cs
+
+Add generic repository, automapper and can use static files
+
+```
+//add generic repository
+services.AddScoped(typeof(IGenericRepository<>), (typeof(GenericRepository<>)));
+//add automapper
+services.AddAutoMapper(typeof(MappingProfiles));
+
+//let system to use static files like local image files
+app.UseStaticFiles();
+```
+
+#### appsettings.Development.json 
+
+```
+"ApiUrl": "https://localhost:5001/"
+```
+
+#### IGenericRepository.cs 
+
+Create GenericRepository to implement
+
+```
+public interface IGenericRepository<T> where T : BaseEntity
+{
+    //create two methods, one get by id, another one get all item as a list
+    Task<T> GetByIdAsync(int id);
+    Task<IReadOnlyList<T>> ListAllAsync();
+    Task<T> GetEntityWithSpec(ISpecification<T> spec);
+    Task<IReadOnlyList<T>> ListAsync(ISpecification<T> spec);
+}
+```
+
+#### ISpecification.cs 
+
+Create specification interface
+
+```
+public interface ISpecification<T>
+{
+    //create specification interface
+    Expression<Func<T, bool>> Criteria {get; }
+    List<Expression<Func<T, object>>> Includes {get; }
+}
+```
+
+#### BaseSpecification.cs
+
+Create basespecification class to implement interface
+
+```
+public class BaseSpecification<T> : ISpecification<T>
+{
+    public BaseSpecification()
+    {
+    }
+
+    public BaseSpecification(Expression<Func<T, bool>> criteria)
+    {
+        Criteria = criteria;
+    }
+
+    public Expression<Func<T, bool>> Criteria {get; }
+
+    public List<Expression<Func<T, object>>> Includes {get; } = 
+        new List<Expression<Func<T, object>>>();
+
+    protected void AddInclude(Expression<Func<T, object>> includeExpression)
+    {
+        Includes.Add(includeExpression);
+    }
+}
+```
+
+#### GenericRepository.cs 
+
+Create GenericRepository to implement, instead of normal repository
+
+```
+public class GenericRepository<T> : IGenericRepository<T> where T : BaseEntity
+{
+    private readonly StoreContext _context;
+    public GenericRepository(StoreContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<T> GetByIdAsync(int id)
+    {
+        //get object by id
+        return await _context.Set<T>().FindAsync();
+    }
+
+    public async Task<IReadOnlyList<T>> ListAllAsync()
+    {
+        //get a list of object
+        return await _context.Set<T>().ToListAsync();
+    }
+
+    public async Task<T> GetEntityWithSpec(ISpecification<T> spec)
+    {
+        return await ApplySpecification(spec).FirstOrDefaultAsync();
+    }
+
+    public async Task<IReadOnlyList<T>> ListAsync(ISpecification<T> spec)
+    {
+        return await ApplySpecification(spec).ToListAsync();
+    }
+
+    private IQueryable<T> ApplySpecification(ISpecification<T> spec)
+    {
+        return SpecificationEvaluator<T>.GetQuery(_context.Set<T>().AsQueryable(), spec);
+    }
+}
+```
+
+#### ProductsWithTypesAndBrandsSpecification.cs
+
+Create this class to implement products which has specific type and brand
+
+```
+public class ProductsWithTypesAndBrandsSpecification : BaseSpecification<Product>
+{
+    //get entrance to product, we can add include in controller
+    public ProductsWithTypesAndBrandsSpecification()
+    {
+        AddInclude(x => x.ProductType);
+        AddInclude(x => x.ProductBrand);
+    }
+
+    //implement the method with criteria
+    public ProductsWithTypesAndBrandsSpecification(int id)
+         : base(x => x.Id == id)
+    {
+        AddInclude(x => x.ProductType);
+        AddInclude(x => x.ProductBrand);
+    }
+}
+```
+
+#### SpecificationEvaluator.cs
+
+```
+public class SpecificationEvaluator<TEntity> where TEntity : BaseEntity
+{
+    //create evaluator of specification
+    //return iqueryable of products
+    public static IQueryable<TEntity> GetQuery(IQueryable<TEntity> inputQuery, 
+    ISpecification<TEntity> spec)
+    {
+        var query = inputQuery;
+
+        if (spec.Criteria != null)
+        {
+            query = query.Where(spec.Criteria); //p => p.ProductTypeId == id
+        }
+
+        // doing same with include before in ProductRepository class
+        query = spec.Includes.Aggregate(query, 
+            (current, include) => current.Include(include));
+
+        return query;
+    }
+}
+```
+
+
 To be continued.
 
 
