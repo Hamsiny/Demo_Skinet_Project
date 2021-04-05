@@ -2,19 +2,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using API.Dtos;
+using API.Errors;
 using AutoMapper;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Specifications;
 using Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ProductsController : ControllerBase
+    // [ApiController]
+    // [Route("api/[controller]")]
+    public class ProductsController : BaseApiController
     {
         private readonly IGenericRepository<Product> _productsRepo;
         private readonly IGenericRepository<ProductBrand> _productBrandRepo;
@@ -49,12 +51,17 @@ namespace API.Controllers
         }
 
         [HttpGet("{id}")]
+        //to tell swagger which situation is 
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ProductToReturnDto>> GetProduct(int id)
         {
             //this error disappeared
             var spec = new ProductsWithTypesAndBrandsSpecification(id);
             //has error here
             var product = await _productsRepo.GetEntityWithSpec(spec);
+            //give 404 response if we dont find the product
+            if (product == null) return NotFound(new ApiResponse(404));
 
             //instead return the product, return the dto object to show what we want to show to clients
             //replace ProductToReturnDto with automapper
