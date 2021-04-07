@@ -29,6 +29,15 @@ namespace API
             //use extention to clean up startup class
             services.AddApplicationServices();
             services.AddSwaggerDocumentation();
+            //add cors function
+            services.AddCors(opt =>
+            {
+                opt.AddPolicy("CorsPolicy", policy =>
+                {
+                    policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("https://localhost:4200");
+                });
+            });
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -45,6 +54,8 @@ namespace API
             app.UseRouting();
             //let system to use static files like local image files
             app.UseStaticFiles();
+            //add cors we create in above method
+            app.UseCors("CorsPolicy");
 
             app.UseAuthorization();
 
