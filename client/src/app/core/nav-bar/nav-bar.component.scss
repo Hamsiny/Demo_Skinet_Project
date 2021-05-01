@@ -10,3 +10,22 @@
     top: -12px;
     right: 32px;
 }
+
+a {
+    text-decoration: none;
+    color: #343a40;
+
+    &.active {
+        color: orange;
+    }
+}
+
+.logo {
+    //show cursor when hover to logo
+    cursor: pointer;
+
+    //make the logo no border when get clicked
+    &:focus {
+        outline: none;
+    }
+}
