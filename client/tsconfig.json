@@ -18,7 +18,7 @@
     ]
   },
   "angularCompilerOptions": {
-    // "strictTemplates": true,  this is what tutorial has but i dont
+    "strictTemplates": true,
     "strictDomEventTypes": false,
     "enableI18nLegacyMessageIdFormat": false
   }
