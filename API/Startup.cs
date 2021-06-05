@@ -62,6 +62,8 @@ namespace API
             //using middleware instead to return error message
             app.UseMiddleware<ExceptionMiddleware>();
 
+            app.UseSwaggerDocumentation();
+
             //redirect to error controller to show error message
             app.UseStatusCodePagesWithReExecute("/errors/{0}");
 
@@ -75,8 +77,6 @@ namespace API
 
             app.UseAuthentication();
             app.UseAuthorization();
-
-            app.UseSwaggerDocumentation();
 
             app.UseEndpoints(endpoints =>
             {
